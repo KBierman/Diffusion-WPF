@@ -7,22 +7,13 @@ namespace Diffusion
     public partial class MainWindow : Window
     {
 
-        private int width = 50;
+        private int width = 100;
         private int height = 50;
         private double tickCounterValue = 0;
         private double tickCounterInterval = .25;
         private double[,] gridA, gridB;
         private double[,] nextA, nextB;
-
-        // Gray-Scott parameters
-        private double dA = 1.0;
-        private double dB = 0.5;
-        private double feed = 0.055;
-        private double kill = 0.062;
-        private double dt = 1.0;
         private readonly DispatcherTimer _timer;
-
-        DiffusionBasics diffusion = new DiffusionBasics();
         public MainWindow()
         {
             _timer = new DispatcherTimer
@@ -55,9 +46,9 @@ namespace Diffusion
             {
                 double.Parse(feedBox.Text);
                 double.Parse(killBox.Text);
-            Update();
+                Update();
                 ColorGrid();
-        }
+            }
             catch
             {
             }
@@ -120,7 +111,7 @@ namespace Diffusion
                     double a = gridA[i, j];
                     double b = gridB[i, j];
                     byte r = (byte)(Math.Clamp((a - b) * 255, 0, 255));
-                    ScreenGrid.Children[(width * i + j)].SetValue(Border.BackgroundProperty, new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, 200, 200)));
+                    ScreenGrid.Children[(height * i + j)].SetValue(Border.BackgroundProperty, new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, 200, 200)));
                 }
             }
         }
@@ -168,11 +159,11 @@ namespace Diffusion
         {
             string[] states =
             {
-        "Loading",
-        "Loading.",
-        "Loading..",
-        "Loading..."
-    };
+                "Loading",
+                "Loading.",
+                "Loading..",
+                "Loading..."
+            };
 
             int i = 0;
 
