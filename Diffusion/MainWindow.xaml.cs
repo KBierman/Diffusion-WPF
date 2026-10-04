@@ -6,27 +6,20 @@ namespace Diffusion
 {
     public partial class MainWindow : Window
     {
-
         private int width = 50;
         private int height = 50;
         private double tickCounterValue = 0;
         private double tickCounterInterval = .25;
         private double[,] gridA, gridB;
         private double[,] nextA, nextB;
-
-        // Gray-Scott parameters
-        private double dA = 1.0;
-        private double dB = 0.5;
-        private double feed = 0.055;
-        private double kill = 0.062;
-        private double dt = 1.0;
         private readonly DispatcherTimer _timer;
 
-        DiffusionBasics diffusion = new DiffusionBasics();
         public MainWindow()
         {
-            _timer = new DispatcherTimer();
-            _timer.Interval = TimeSpan.FromSeconds(tickCounterInterval);
+            _timer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(tickCounterInterval)
+            };
             _timer.Tick += Timer_Tick;
             gridA = new double[width, height];
             gridB = new double[width, height];
@@ -45,11 +38,18 @@ namespace Diffusion
             _timer.Start();
         }
 
-
-
         private void Timer_Tick(object sender, EventArgs e)
         {
-            Update();
+            try
+            {
+                double.Parse(feedBox.Text);
+                double.Parse(killBox.Text);
+                Update();
+                ColorGrid();
+            }
+            catch
+            {
+            }
         }
 
         public void ResetGrid()
@@ -114,6 +114,137 @@ namespace Diffusion
             }
         }
 
+        private void resetButton_Click(object sender, RoutedEventArgs e)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    gridA[x, y] = 1.0;
+                    gridB[x, y] = 0.0;
+                }
+            }
+
+            int cx = width / 2;
+            int cy = height / 2;
+            for (int x = cx - 5; x < cx + 5; x++)
+            {
+                for (int y = cy - 5; y < cy + 5; y++)
+                {
+                    gridB[x, y] = 1.0;
+                }
+            }
+            tickCounterValue = 0;
+            tickCounter.Dispatcher.Invoke(() => tickCounter.Content = "Tick: " + tickCounterValue.ToString());
+
+            ColorGrid();
+        }
+
+        private void pauseButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_timer.IsEnabled)
+            {
+                _timer.Stop();
+                pauseButton.Content = "Start";
+            }
+            else
+            {
+                _timer.Start();
+                pauseButton.Content = "Stop";
+            }
+        }
+        private async Task LoadingAnimation(CancellationToken token)
+        {
+            string[] states =
+            {
+        "Loading",
+        "Loading.",
+        "Loading..",
+        "Loading..."
+    };
+
+            int i = 0;
+
+            while (true)
+            {
+                loadLabel.Content = states[i++ % states.Length];
+
+                await Task.Delay(250, token);
+            }
+        }
+
+        private async void sandButton_Click(object sender, RoutedEventArgs e)
+        {
+            bool timeContinue = _timer.IsEnabled;
+            disableEnableButton();
+            _timer.Stop();
+            using var cts = new CancellationTokenSource();
+
+            Task loadingTask = LoadingAnimation(cts.Token);
+            double grains = double.Parse(sandBox.Text);
+            double feed = double.Parse(feedBox.Text);
+            double kill = double.Parse(killBox.Text);
+            double DA = double.Parse(DABox.Text);
+            double DB = double.Parse(DBBox.Text);
+            double[,] tempA = gridA;
+            double[,] tempB = gridB;
+            double[,] nextA = new double[width, height];
+            double[,] nextB = new double[width, height];
+            Task sandTask = Task.Run(() =>
+            {
+                for (int i = 0; i < grains; i++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        for (int y = 0; y < height; y++)
+                        {
+                            double a = tempA[x, y];
+                            double b = tempB[x, y];
+
+                            double abb = a * b * b;
+
+                            nextA[x, y] = a + (DA * Laplacian(x, y, tempA) - abb + feed * (1.0 - a)) * 1;
+                            nextB[x, y] = b + (DB * Laplacian(x, y, tempB) + abb - (kill + feed) * b) * 1;
+                        }
+                    }
+
+                    double[,] extraTempA = tempA; tempA = nextA; nextA = extraTempA;
+                    double[,] extraTempB = tempB; tempB = nextB; nextB = extraTempB;
+                    tickCounterValue += tickCounterInterval;
+                }
+            });
+            await sandTask;
+            cts.Cancel();
+            try
+            {
+                await loadingTask;
+
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            finally
+            {
+                gridA = tempA;
+                gridB = tempB;
+                loadLabel.Content = "";
+                tickCounter.Dispatcher.Invoke(() => tickCounter.Content = "Tick: " + tickCounterValue.ToString());
+                ColorGrid();
+                if (timeContinue)
+                {
+                    _timer.Start();
+                }
+                disableEnableButton();
+            }
+        }
+
+        private void disableEnableButton()
+        {
+            pauseButton.IsEnabled = !pauseButton.IsEnabled;
+            resetButton.IsEnabled = !resetButton.IsEnabled;
+            sandButton.IsEnabled = !sandButton.IsEnabled;
+        }
+
         public void Update()
         {
             for (int x = 0; x < width; x++)
@@ -125,8 +256,8 @@ namespace Diffusion
 
                     double abb = a * b * b;
 
-                    nextA[x, y] = a + (dA * diffusion.Laplacian(x, y, gridA, width, height) - abb + feed * (1.0 - a)) * dt;
-                    nextB[x, y] = b + (dB * diffusion.Laplacian(x, y, gridB, width, height) + abb - (kill + feed) * b) * dt;
+                    nextA[x, y] = a + (double.Parse(DABox.Text) * Laplacian(x, y, gridA) - abb + double.Parse(feedBox.Text) * (1.0 - a)) * 1;
+                    nextB[x, y] = b + (double.Parse(DBBox.Text) * Laplacian(x, y, gridB) + abb - (double.Parse(killBox.Text) + double.Parse(feedBox.Text)) * b) * 1;
                 }
             }
 
@@ -134,7 +265,20 @@ namespace Diffusion
             double[,] tempB = gridB; gridB = nextB; nextB = tempB;
             tickCounterValue += tickCounterInterval;
             tickCounter.Dispatcher.Invoke(() => tickCounter.Content = "Tick: " + tickCounterValue.ToString());
-            ColorGrid();
+        }
+        public double Laplacian(int x, int y, double[,] grid)
+        {
+            double sum = 0;
+            sum += grid[x, y] * -1.0;
+            sum += grid[(x - 1 + width) % width, y] * 0.2;
+            sum += grid[(x + 1) % width, y] * 0.2;
+            sum += grid[x, (y - 1 + height) % height] * 0.2;
+            sum += grid[x, (y + 1) % height] * 0.2;
+            sum += grid[(x - 1 + width) % width, (y - 1 + height) % height] * 0.05;
+            sum += grid[(x + 1) % width, (y - 1 + height) % height] * 0.05;
+            sum += grid[(x - 1 + width) % width, (y + 1) % height] * 0.05;
+            sum += grid[(x + 1) % width, (y + 1) % height] * 0.05;
+            return sum;
         }
 
     }
