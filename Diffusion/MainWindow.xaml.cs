@@ -6,14 +6,23 @@ namespace Diffusion
 {
     public partial class MainWindow : Window
     {
+
         private int width = 50;
         private int height = 50;
         private double tickCounterValue = 0;
         private double tickCounterInterval = .25;
         private double[,] gridA, gridB;
         private double[,] nextA, nextB;
+
+        // Gray-Scott parameters
+        private double dA = 1.0;
+        private double dB = 0.5;
+        private double feed = 0.055;
+        private double kill = 0.062;
+        private double dt = 1.0;
         private readonly DispatcherTimer _timer;
 
+        DiffusionBasics diffusion = new DiffusionBasics();
         public MainWindow()
         {
             _timer = new DispatcherTimer
@@ -38,15 +47,17 @@ namespace Diffusion
             _timer.Start();
         }
 
+
+
         private void Timer_Tick(object sender, EventArgs e)
         {
             try
             {
                 double.Parse(feedBox.Text);
                 double.Parse(killBox.Text);
-                Update();
+            Update();
                 ColorGrid();
-            }
+        }
             catch
             {
             }
